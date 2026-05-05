@@ -135,19 +135,25 @@
                 <tr>
                     <th>Driver Name</th>
                     <th>Signature</th>
+                    <th>Policy Name</th>
+                    <th>Version</th>
+                    <th>Action Date</th>
                     <th>Status</th>
                 </tr>
                 </thead>
                 <tbody>
                     @foreach($policyAssignments as $assignment)
                     <tr>
-                        <td>{{  $assignment->driver->name ?? '-' }}</td>
+                        <td>{{ $assignment->driver->name ?? '-' }}</td>
                         <td>
                             @if($assignment->signature)
                                 <img src="{{ asset('storage/' . $assignment->signature) }}" alt="Signature" style="width: 100px; height: auto;">
                             @endif
                         </td>
-                        <td>{{  $assignment->status }}</td>
+                        <td>{{ $assignment->policy_name ?? '-' }}</td>
+                        <td>{{ $assignment->policy_version ?? '-' }}</td>
+                        <td>{{ $assignment->updated_at ? $assignment->updated_at->format('d/m/Y H:i') : '-' }}</td>
+                        <td>{{ $assignment->status }}</td>
                     </tr>
                     @endforeach
                 </tbody>

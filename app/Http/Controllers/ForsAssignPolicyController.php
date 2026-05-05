@@ -804,7 +804,7 @@ public function step2(Request $request)
 
                 'Comment' => $row->comment ?? '',
                 'Assigned By' => $row->creator->username ?? '',
-
+                'Action Date' => $row->status === 'Pending' ? '-' : ($row->updated_at ? $row->updated_at->format('d/m/Y H:i') : '-'),
             ];
         });
 
