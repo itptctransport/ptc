@@ -1772,4 +1772,17 @@ if (!$skipQuery) {
 
         return $pdf->download($filename);
     }
+
+    public function deleteAttachment($id)
+    {
+        $attachment = \App\Models\WorkAroundRectifiedImages::findOrFail($id);
+
+        if (\Storage::disk('local')->exists($attachment->image_path)) {
+            \Storage::disk('local')->delete($attachment->image_path);
+        }
+
+        $attachment->delete();
+
+        return redirect()->back()->with('success', 'Attachment deleted successfully.');
+    }
 }

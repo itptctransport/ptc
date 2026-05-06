@@ -1570,6 +1570,8 @@ Route::post('/assign-policy/send-email', [\App\Http\Controllers\ForsAssignPolicy
             Route::post('/workaround/updateStatus', [\App\Http\Controllers\WorkAroundController::class, 'updateStatus'])->name('workaround.updateStatus');
             Route::get('/workaround/get-defect-options', [\App\Http\Controllers\WorkAroundController::class, 'getDefectOptions'])->name('workaround.getDefectOptions');
             Route::post('/workaround/rectified', [\App\Http\Controllers\WorkAroundController::class, 'markRectified'])->name('workaround.markRectified');
+            Route::delete('/walkaround-attachment/{id}', [\App\Http\Controllers\WorkAroundController::class, 'deleteAttachment'])->name('walkaround.attachment.delete');
+            Route::delete('/walkaround-attachment/{id}', [\App\Http\Controllers\WorkAroundController::class, 'deleteAttachment'])->name('walkaround.attachment.delete');
 
         }
     );

@@ -94,7 +94,7 @@
         margin-right: 5px;
     }
 
-    button {
+    #rectifiedStatusModal button {
         display: block;
         width: 100%;
         background-color: #48494B;
@@ -106,7 +106,7 @@
         margin-top: 15px;
     }
 
-    button:hover {
+    #rectifiedStatusModal button:hover {
         background-color: #218838;
     }
     .modal img {
@@ -588,18 +588,41 @@
                                                     <td class="text-center">{{ $answer->problem_solution ?? 'N/A' }}</td>
                                                     <td class="text-center">{{ $answer->rectified_username ?? 'N/A' }}</td>
                                                     <td class="text-center">
-                                                        <a href="{{ asset('storage/' . $file->image_path) }}"
-                                                       class="btn btn-sm btn-primary"
-                                                           download="{{ $answer->question->name ?? 'Unknown' }}"
-                                                           data-bs-toggle="tooltip" title="Download">
-                                                        <i class="ti ti-download"></i>
-                                                        </a>
-                                                        <a href="{{ asset('storage/' . $file->image_path) }}"
-                                                       class="btn btn-sm btn-warning mx-2"
-                                                           target="_blank" data-bs-toggle="tooltip" title="View">
-                                                        <i class="ti ti-eye"></i>
-                                                        </a>
-                                                </td>
+    <div class="d-flex align-items-center justify-content-center">
+
+        <a href="{{ asset('storage/' . $file->image_path) }}"
+           class="btn btn-sm btn-primary"
+           download="{{ $answer->question->name ?? 'Unknown' }}"
+           data-bs-toggle="tooltip"
+           title="Download">
+            <i class="ti ti-download"></i>
+        </a>
+
+        <a href="{{ asset('storage/' . $file->image_path) }}"
+           class="btn btn-sm btn-warning mx-2"
+           target="_blank"
+           data-bs-toggle="tooltip"
+           title="View">
+            <i class="ti ti-eye"></i>
+        </a>
+
+        <form action="{{ route('walkaround.attachment.delete', $file->id) }}"
+              method="POST"
+              onsubmit="return confirm('Are you sure you want to delete this attachment? This action cannot be undone.')"
+              style="display:inline-block;">
+            @csrf
+            @method('DELETE')
+
+            <button type="submit"
+                    class="btn btn-sm btn-danger"
+                    data-bs-toggle="tooltip"
+                    title="Delete Attachment">
+                <i class="ti ti-trash"></i>
+            </button>
+        </form>
+
+    </div>
+</td>
                                                     </tr>
                                                 @endforeach
                                             @else
