@@ -91,7 +91,11 @@ use Carbon\Carbon;
                                     </td>
                                     <td style="text-align: left">{{ $contactbook->designation }}</td>
                                     <td style="text-align: left">{{ $contactbook->name }}</td>
-                                    <td style="text-align: left">+44 {{ $contactbook->mobile_no }}</td>
+                                    <td style="text-align: left">
+                                        @foreach(explode('/', $contactbook->mobile_no) as $mobile)
+                                            +44 {{ trim($mobile) }}<br>
+                                        @endforeach
+                                    </td>
                                     <td style="text-align: left">{{ $contactbook->address }}</td>
                                     <td style="text-align: left">{{ !empty($contactbook->types) ? ucwords(strtoupper($contactbook->types->name)) : '' }}</td>
                                     <td style="text-align: left">{{ !empty($contactbook->creator)?$contactbook->creator->username:'' }}</td>
