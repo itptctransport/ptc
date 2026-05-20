@@ -2575,7 +2575,7 @@ $vehiclesCount = \App\Models\Vehicles::where('companyName', $company->id)
         'handbook_count' => $policyCount, // Add policy count to the response
         'training_count' => $trainingCount,
         'consent_form' => $driver->consent_form_status,
-        'lc_check' => $company->lc_check_status,
+        'lc_check' => ($company->lc_check_status === 'Enable' && $driver->automation === 'Yes') ? 'Enable' : 'Disable',
         'depot_name' => $driver->depot->name ?? null, // Added depot_id
         'depot_access_status' => $driver->depot_access_status === 'Yes',
 
