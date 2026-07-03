@@ -150,9 +150,20 @@ $(document).ready(function () {
         }
     });
 
-    // Group change → reload drivers
+    // Track currently selected driver IDs across group reloads
+    var selectedDriverIds = @json($assignedDriverIds);
+
+    // Group change → reload drivers, preserve selected
     function attachGroupChangeEvent(companyId) {
         $('.edit-group-checkbox').off('change').on('change', function () {
+            // Save currently checked drivers before reload
+            $('.edit-driver-checkbox:checked').each(function () {
+                let id = parseInt($(this).val());
+                if (!selectedDriverIds.includes(id)) selectedDriverIds.push(id);
+            });
+            // Remove drivers belonging to unchecked groups from selectedDriverIds only if
+            // we are unchecking — we do this by fetching all drivers for checked groups
+            // and keeping only those in selectedDriverIds that still appear in the new list
             let groupIds = $('.edit-group-checkbox:checked').map(function () { return $(this).val(); }).get();
             $('#edit_driver_checkbox_container').empty();
 
@@ -162,10 +173,16 @@ $(document).ready(function () {
                     method: 'GET',
                     data: { company_id: companyId, group_id: groupIds },
                     success: function (response) {
+                        // Build set of driver IDs returned for checked groups
+                        let availableIds = Object.keys(response.drivers).map(Number);
+                        // Remove from selectedDriverIds any driver not in available list
+                        selectedDriverIds = selectedDriverIds.filter(id => availableIds.includes(id));
+
                         $.each(response.drivers, function (index, driver) {
+                            let checked = selectedDriverIds.includes(parseInt(index)) ? 'checked' : '';
                             let driverCheckbox = `
                                 <div class="form-check">
-                                    <input class="form-check-input edit-driver-checkbox" type="checkbox" name="driver_id[]" value="${index}" id="edit_driver_${index}">
+                                    <input class="form-check-input edit-driver-checkbox" type="checkbox" name="driver_id[]" value="${index}" id="edit_driver_${index}" ${checked}>
                                     <label class="form-check-label driver-name" for="edit_driver_${index}">${driver}</label>
                                 </div>`;
                             $('#edit_driver_checkbox_container').append(driverCheckbox);
