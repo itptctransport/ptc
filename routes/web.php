@@ -1034,6 +1034,9 @@ Route::group(['middleware' => ['verified']], function () {
                         Route::put('trainingTypes/course/update/{trainingcourse}', [\App\Http\Controllers\TrainingController::class, 'trainingcourseupdate'])->name('training.course.update');
                         Route::delete('trainingTypes/delete/{trainingcourse}', [\App\Http\Controllers\TrainingController::class, 'trainingcoursedestroy'])->name('training.course.delete');
 
+ Route::get('training/{id}/edit-popup', [\App\Http\Controllers\TrainingController::class, 'editPopup'])->name('training.edit-popup');
+                        Route::put('training/{id}/update-training', [\App\Http\Controllers\TrainingController::class, 'updateTraining'])->name('training.update-training');
+
  Route::get('trainings-history', [\App\Http\Controllers\TrainingController::class, 'traininghistorytindex'])->name('training.history.index');
                         Route::post('/assign-training-dates', [\App\Http\Controllers\TrainingController::class, 'assignTrainingDates'])->name('traininghistory.store');
                         Route::get('training/history/edit/{training}', [\App\Http\Controllers\TrainingController::class, 'traininghistorytedit'])->name('traininghistory.edit');

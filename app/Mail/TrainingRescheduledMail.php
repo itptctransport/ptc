@@ -6,54 +6,43 @@ use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
 
-class TrainingAssigned extends Mailable
+class TrainingRescheduledMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    /**
-     * Create a new message instance.
-     */
     public $driver;
     public $training;
     public $fromDate;
     public $toDate;
     public $icsFilePath;
 
-    /**
-     * Create a new message instance.
-     *
-     * @return void
-     */
     public function __construct($driver, $training, $fromDate, $toDate, $icsFilePath = null)
     {
-        $this->driver = $driver;
-        $this->training = $training;
-        $this->fromDate = $fromDate;
-        $this->toDate = $toDate;
+        $this->driver      = $driver;
+        $this->training    = $training;
+        $this->fromDate    = $fromDate;
+        $this->toDate      = $toDate;
         $this->icsFilePath = $icsFilePath;
     }
 
     public function build()
     {
-        $subject = 'Upcoming Training Course Reminder: ' . $this->training->trainingCourse->name;
-
-        $email = $this->markdown('emails.training_assigned')
-            ->subject($subject)
+        $email = $this->view('emails.training_rescheduled')
+            ->subject('Training Rescheduled: ' . $this->training->trainingCourse->name)
             ->with([
-                'driver' => $this->driver,
+                'driver'   => $this->driver,
                 'training' => $this->training,
                 'fromDate' => $this->fromDate,
-                'toDate' => $this->toDate,
+                'toDate'   => $this->toDate,
             ]);
 
         if ($this->icsFilePath) {
             $email->attach($this->icsFilePath, [
-                'as' => 'training_details.ics',
+                'as'   => 'training_details.ics',
                 'mime' => 'text/calendar',
             ]);
         }
 
         return $email;
     }
-
 }

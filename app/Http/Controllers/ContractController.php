@@ -3958,7 +3958,7 @@ if (isset($responseVehicle['motTests']) && is_array($responseVehicle['motTests']
             }
 
             // Lookup CompanyDetails based on companyName
-            $companyName = $items[1] ?? null; // Adjust index according to the column position
+            $companyName = $items[2] ?? null; // Adjust index according to the column position
             $companyDetails = \App\Models\CompanyDetails::where('name', $companyName)->first();
             if (! $companyDetails) {
                 $errorArray[] = [
@@ -3980,7 +3980,7 @@ if (isset($responseVehicle['motTests']) && is_array($responseVehicle['motTests']
             }
 
             // Lookup Depot based on depot name
-            $depotName = $items[10] ?? null; // Assuming depot column index is 10
+            $depotName = $items[11] ?? null; // Assuming depot column index is 11
             $depotDetails = \App\Models\Depot::where('name', $depotName)
                 ->where('companyName', $companyDetails->id) // Ensure depot belongs to the same company
                 ->first();
@@ -4007,7 +4007,7 @@ if (isset($responseVehicle['motTests']) && is_array($responseVehicle['motTests']
                 continue;
             }
 
-            $vehicleGroupName = $items[9] ?? null; // Group column index
+            $vehicleGroupName = $items[10] ?? null; // Group column index
 
             // Lookup Group based on group name
             $group = \App\Models\VehicleGroup::where('name', $vehicleGroupName)
@@ -4073,13 +4073,14 @@ if (isset($responseVehicle['motTests']) && is_array($responseVehicle['motTests']
             $vehicleDetails->created_by = \Auth::user()->id;
 
             // Assign the new fields and convert dates to 'Y-m-d' format
-            $vehicleDetails->tacho_calibration = $this->formatDate($items[2] ?? null);
-            $vehicleDetails->dvs_pss_permit_expiry = $this->formatDate($items[3] ?? null);
-            $vehicleDetails->insurance = $this->formatDate($items[4] ?? null);
-            $vehicleDetails->date_of_inspection = $this->formatDate($items[5] ?? null);
-            $vehicleDetails->odometer_reading = $items[7] ?? null;
-            $vehicleDetails->insurance_type = $items[8] ?? null;
-            $vehicleType = $items[11] ?? null; // Just for checking, not saving
+            $vehicleDetails->vehicle_nick_name = $items[1] ?? $vehicleService->registrations;
+            $vehicleDetails->tacho_calibration = $this->formatDate($items[3] ?? null);
+            $vehicleDetails->dvs_pss_permit_expiry = $this->formatDate($items[4] ?? null);
+            $vehicleDetails->insurance = $this->formatDate($items[5] ?? null);
+            $vehicleDetails->date_of_inspection = $this->formatDate($items[6] ?? null);
+            $vehicleDetails->odometer_reading = $items[8] ?? null;
+            $vehicleDetails->insurance_type = $items[9] ?? null;
+            $vehicleType = $items[12] ?? null; // Just for checking, not saving
 
             // Set vehicle_type in Vehicles model
             if (strtolower(trim($vehicleType)) === 't') {
@@ -4198,7 +4199,7 @@ if (isset($responseVehicle['motTests']) && is_array($responseVehicle['motTests']
             //         }
 
             $vehicleDetails->group_id = $group_id;
-            $date_of_inspection = $this->formatDate($items[5] ?? null);
+            $date_of_inspection = $this->formatDate($items[6] ?? null);
 
             // Calculate PMI_Due based on PMI_intervals (in weeks)
             if ($date_of_inspection === null) {
@@ -4207,7 +4208,7 @@ if (isset($responseVehicle['motTests']) && is_array($responseVehicle['motTests']
                 $vehicleDetails->PMI_Due = null;
                 $vehicleDetails->brake_test_due = null;
             } else {
-                $pmi_intervals = $items[6] ?? null;
+                $pmi_intervals = $items[7] ?? null;
                 $vehicleDetails->PMI_intervals = $pmi_intervals;
 
                 if ($pmi_intervals) {

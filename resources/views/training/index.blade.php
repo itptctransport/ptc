@@ -299,6 +299,9 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{__('Close')}}</button>
+                    @can('edit trainingds')
+                    <button type="button" class="btn btn-primary" id="editTrainingBtn">{{__('Edit')}}</button>
+                    @endcan
                 </div>
             </div>
         </div>
@@ -327,6 +330,9 @@
                         const year = date.getFullYear();
                         return `${day}/${month}/${year}`;
                     }
+
+                    // Store training id for edit button
+                    $('#trainingDetailsModal').data('training-id', info.event.extendedProps.training_id);
 
                     // Set the training details in the modal
                     document.getElementById('trainingType').textContent = info.event.extendedProps.description;
@@ -365,6 +371,26 @@
                 }
             });
             calendar.render();
+        });
+
+        // Edit button click — open edit popup
+        $(document).on('click', '#editTrainingBtn', function () {
+            var trainingId = $('#trainingDetailsModal').data('training-id');
+            if (!trainingId) return;
+            $('#trainingDetailsModal').modal('hide');
+            var url = '{{ url('training') }}/' + trainingId + '/edit-popup';
+            $.ajax({
+                url: url,
+                method: 'GET',
+                success: function (html) {
+                    $('#commonModal .modal-title').text('{{ __('Edit Training') }}');
+                    $('#commonModal .body').html(html);
+                    $('#commonModal').modal('show');
+                },
+                error: function () {
+                    alert('Failed to load edit form.');
+                }
+            });
         });
     $(document).ready(function() {
         var selectedCompanyId = $('#company_id').length ? $('#company_id').val() : null;

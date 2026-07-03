@@ -422,6 +422,7 @@ class TrainingController extends Controller
                     'drivers' => $drivers->toArray(),
                     'company' => $training->company->name,
                     'status' => $training->status,
+                    'training_id' => $training->id,
                 ];
 
             });
@@ -1681,6 +1682,237 @@ class TrainingController extends Controller
         } else {
             return redirect()->back()->with('error', __('Permission denied.'));
         }
+    }
+
+    public function editPopup($id)
+    {
+        $user = \Auth::user();
+
+        if (!$user->can('edit trainingds')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $training = \App\Models\Training::with('trainingDriverAssigns.driver', 'trainingType', 'trainingCourse', 'company')->findOrFail($id);
+
+        $assignedDriverIds = $training->trainingDriverAssigns->pluck('driver_id')->toArray();
+        $assignedGroupIds  = \App\Models\Driver::whereIn('id', $assignedDriverIds)->pluck('group_id')->unique()->toArray();
+
+        $trainingCourses = TrainingCourse::where('trainingtype_id', $training->training_type_id)->get();
+
+        if ($user->hasRole('company') || $user->hasRole('PTC manager')) {
+            $contractTypes  = \App\Models\CompanyDetails::orderBy('name', 'asc')->where('company_status', 'Active')->pluck('name', 'id');
+            $trainingTypes  = TrainingType::pluck('name', 'id');
+            $groups         = \App\Models\Group::where('company_id', $training->companyName)->pluck('name', 'id');
+            $drivers        = \App\Models\Driver::where('companyName', $training->companyName)->where('driver_status', 'Active')->whereIn('group_id', $assignedGroupIds)->pluck('name', 'id');
+        } else {
+            $contractTypes  = \App\Models\CompanyDetails::where('id', $user->companyname)->where('company_status', 'Active')->pluck('name', 'id');
+            $trainingTypes  = TrainingType::where('company_id', $user->companyname)->pluck('name', 'id');
+            $depotIds       = is_array($user->depot_id) ? $user->depot_id : json_decode($user->depot_id, true);
+            $groups         = \App\Models\Group::where('company_id', $training->companyName)->pluck('name', 'id');
+            $drivers        = \App\Models\Driver::where('companyName', $training->companyName)->where('driver_status', 'Active')->whereIn('group_id', $assignedGroupIds)->whereIn('depot_id', $depotIds ?? [])->pluck('name', 'id');
+        }
+
+        return view('training.edit_popup', compact('training', 'trainingTypes', 'trainingCourses', 'contractTypes', 'groups', 'drivers', 'assignedDriverIds', 'assignedGroupIds'));
+    }
+
+    public function updateTraining(Request $request, $id)
+    {
+        $user = \Auth::user();
+
+        if (!$user->can('edit trainingds')) {
+            return redirect()->back()->with('error', __('Permission denied.'));
+        }
+
+        $validator = \Validator::make($request->all(), [
+            'training_type_id'   => 'required|exists:training_types,id',
+            'training_course_id' => 'required|exists:training_courses,id',
+            'companyName'        => 'required|exists:company_details,id',
+            'from_date'          => 'required|date',
+            'to_date'            => 'required|date|after_or_equal:from_date',
+            'from_time'          => 'required',
+            'to_time'            => 'required',
+            'driver_id'          => 'required|array',
+            'description'        => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()->withErrors($validator)->withInput();
+        }
+
+        $training = \App\Models\Training::findOrFail($id);
+
+        // Snapshot old values
+        $oldFromDate = $training->from_date;
+        $oldToDate   = $training->to_date;
+        $oldFromTime = \Carbon\Carbon::parse($training->from_time)->format('H:i');
+        $oldToTime   = \Carbon\Carbon::parse($training->to_time)->format('H:i');
+
+        $newFromDate = \Carbon\Carbon::createFromFormat('Y-m-d', $request->from_date)->format('Y-m-d');
+        $newToDate   = \Carbon\Carbon::createFromFormat('Y-m-d', $request->to_date)->format('Y-m-d');
+
+        // Duration check
+        $trainingCourse  = \App\Models\TrainingCourse::find($request->training_course_id);
+        $maxDurationDays = (int) $trainingCourse->duration;
+        $durationInDays  = $newFromDate === $newToDate ? 1 : (\Carbon\Carbon::parse($newToDate)->diffInDays(\Carbon\Carbon::parse($newFromDate)) + 1);
+
+        if ($durationInDays !== $maxDurationDays) {
+            return redirect()->back()->with('error', __('The training duration must be exactly ' . $maxDurationDays . ' days.'));
+        }
+
+        // Detect date/time change
+        $dateTimeChanged = ($oldFromDate !== $newFromDate || $oldToDate !== $newToDate || $oldFromTime !== $request->from_time || $oldToTime !== $request->to_time);
+
+        // Driver diff
+        $oldDriverIds = \App\Models\TrainingDriverAssign::where('training_id', $id)->pluck('driver_id')->toArray();
+        $newDriverIds = $request->driver_id;
+
+        $addedDrivers   = array_values(array_diff($newDriverIds, $oldDriverIds));
+        $removedDrivers = array_values(array_diff($oldDriverIds, $newDriverIds));
+        $keptDrivers    = array_values(array_intersect($oldDriverIds, $newDriverIds));
+
+        // Conflict check for newly added drivers
+        $skippedRecords   = [];
+        $validAddedDrivers = [];
+
+        foreach ($addedDrivers as $driverId) {
+            $latestTraining = \App\Models\TrainingDriverAssign::where('driver_id', $driverId)
+                ->whereHas('training', function ($q) use ($request) {
+                    $q->where('training_type_id', $request->training_type_id)
+                      ->where('training_course_id', $request->training_course_id);
+                })
+                ->orderBy('to_date', 'desc')
+                ->first();
+
+            if ($latestTraining && $latestTraining->training->next_training_date > $newFromDate) {
+                $driverName       = \App\Models\Driver::find($driverId)->name;
+                $skippedRecords[] = ['error' => "Driver {$driverName} already assigned to the same training course before the next training date."];
+                continue;
+            }
+
+            $validAddedDrivers[] = $driverId;
+        }
+
+        $nextTrainingDate = \Carbon\Carbon::parse($newFromDate)->addYears(5)->format('Y-m-d');
+
+        // Update training record
+        $training->training_type_id   = $request->training_type_id;
+        $training->training_course_id = $request->training_course_id;
+        $training->companyName        = $request->companyName;
+        $training->from_date          = $newFromDate;
+        $training->to_date            = $newToDate;
+        $training->from_time          = $request->from_time;
+        $training->to_time            = $request->to_time;
+        $training->description        = $request->description;
+        $training->next_training_date = $nextTrainingDate;
+        $training->save();
+
+        // Reload fresh training with relations for emails
+        $training->load('trainingCourse', 'trainingType', 'company');
+
+        $icsDirectory = storage_path('app/public/trainings/');
+        if (!\File::exists($icsDirectory)) {
+            \File::makeDirectory($icsDirectory, 0755, true);
+        }
+
+        // Handle removed drivers
+        foreach ($removedDrivers as $driverId) {
+            \App\Models\TrainingDriverAssign::where('training_id', $id)->where('driver_id', $driverId)->delete();
+
+            $driver = \App\Models\Driver::find($driverId);
+            if ($driver && !empty($driver->contact_email)) {
+                \Mail::to($driver->contact_email)->send(new \App\Mail\TrainingRemovedMail($driver, $training));
+            }
+        }
+
+        if (!empty($removedDrivers)) {
+            $this->sendNotification(
+                'Training Cancelled',
+                "Your assignment to training ({$training->trainingType->name} - {$training->trainingCourse->name}) has been cancelled.",
+                $removedDrivers
+            );
+        }
+
+        // Handle newly added drivers
+        foreach ($validAddedDrivers as $driverId) {
+            \App\Models\TrainingDriverAssign::create([
+                'training_id' => $training->id,
+                'driver_id'   => $driverId,
+                'status'      => 'Pending',
+                'from_date'   => $newFromDate,
+                'to_date'     => $newToDate,
+            ]);
+
+            $driver = \App\Models\Driver::find($driverId);
+            if ($driver && !empty($driver->contact_email)) {
+                $startDateTime = \Carbon\Carbon::parse($newFromDate . ' ' . $request->from_time)->format('Ymd\THis\Z');
+                $endDateTime   = \Carbon\Carbon::parse($newToDate . ' ' . $request->to_time)->format('Ymd\THis\Z');
+
+                $icsContent  = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nCALSCALE:GREGORIAN\r\nBEGIN:VEVENT\r\n";
+                $icsContent .= 'UID:' . uniqid() . "@yourdomain.com\r\n";
+                $icsContent .= 'DTSTAMP:' . now()->format('Ymd\THis\Z') . "\r\n";
+                $icsContent .= 'DTSTART:' . $startDateTime . "\r\n";
+                $icsContent .= 'DTEND:' . $endDateTime . "\r\n";
+                $icsContent .= 'SUMMARY:Training Session - ' . $training->trainingCourse->name . "\r\n";
+                $icsContent .= 'DESCRIPTION:Training session for driver ' . $driver->name . "\r\n";
+                $icsContent .= "END:VEVENT\r\nEND:VCALENDAR\r\n";
+
+                $icsFilePath = $icsDirectory . 'training_' . $training->id . '_' . $driverId . '.ics';
+                \File::put($icsFilePath, $icsContent);
+
+                \Mail::to($driver->contact_email)->send(new \App\Mail\TrainingAssigned($driver, $training, $newFromDate, $newToDate, $icsFilePath));
+            }
+        }
+
+        if (!empty($validAddedDrivers)) {
+            $this->sendNotification(
+                'Training Assigned',
+                "You have been assigned to training ({$training->trainingType->name} - {$training->trainingCourse->name}).",
+                $validAddedDrivers
+            );
+        }
+
+        // Handle kept drivers — send reschedule email if date/time changed
+        if ($dateTimeChanged) {
+            foreach ($keptDrivers as $driverId) {
+                \App\Models\TrainingDriverAssign::where('training_id', $id)
+                    ->where('driver_id', $driverId)
+                    ->update(['from_date' => $newFromDate, 'to_date' => $newToDate]);
+
+                $driver = \App\Models\Driver::find($driverId);
+                if ($driver && !empty($driver->contact_email)) {
+                    $startDateTime = \Carbon\Carbon::parse($newFromDate . ' ' . $request->from_time)->format('Ymd\THis\Z');
+                    $endDateTime   = \Carbon\Carbon::parse($newToDate . ' ' . $request->to_time)->format('Ymd\THis\Z');
+
+                    $icsContent  = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nCALSCALE:GREGORIAN\r\nBEGIN:VEVENT\r\n";
+                    $icsContent .= 'UID:' . uniqid() . "@yourdomain.com\r\n";
+                    $icsContent .= 'DTSTAMP:' . now()->format('Ymd\THis\Z') . "\r\n";
+                    $icsContent .= 'DTSTART:' . $startDateTime . "\r\n";
+                    $icsContent .= 'DTEND:' . $endDateTime . "\r\n";
+                    $icsContent .= 'SUMMARY:Training Rescheduled - ' . $training->trainingCourse->name . "\r\n";
+                    $icsContent .= 'DESCRIPTION:Rescheduled training for driver ' . $driver->name . "\r\n";
+                    $icsContent .= "END:VEVENT\r\nEND:VCALENDAR\r\n";
+
+                    $icsFilePath = $icsDirectory . 'training_reschedule_' . $training->id . '_' . $driverId . '.ics';
+                    \File::put($icsFilePath, $icsContent);
+
+                    \Mail::to($driver->contact_email)->send(new \App\Mail\TrainingRescheduledMail($driver, $training, $newFromDate, $newToDate, $icsFilePath));
+                }
+            }
+
+            if (!empty($keptDrivers)) {
+                $this->sendNotification(
+                    'Training Rescheduled',
+                    "Your training ({$training->trainingType->name} - {$training->trainingCourse->name}) has been rescheduled.",
+                    $keptDrivers
+                );
+            }
+        }
+
+        if (!empty($skippedRecords)) {
+            session(['errorArray' => $skippedRecords]);
+        }
+
+        return redirect()->route('training.index')->with('success', __('Training successfully updated.'));
     }
 
     public function getEvents()
